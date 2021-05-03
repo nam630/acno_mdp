@@ -13,4 +13,9 @@ python ./code/main.py -p with environment.config_file=cartpole_ver2.yaml algorit
 2. mountain (need to set obs_cost in custom_mountain/envs/hike.py obs_cost)
 python ./code/main.py -p with environment.config_file=mountainHike_ver3.yaml algorithm.use_particle_filter=True log.filename='temp/'
 
+To run Sepsis with POMCP/MCTS
+Empirical model built from 1M random interactions is saved in ???
+1. POMCP
+2. MCTS
+
 
