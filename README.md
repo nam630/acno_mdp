@@ -14,8 +14,12 @@ python ./code/main.py -p with environment.config_file=cartpole_ver2.yaml algorit
 python ./code/main.py -p with environment.config_file=mountainHike_ver3.yaml algorithm.use_particle_filter=True log.filename='temp/'
 
 To run Sepsis with POMCP/MCTS
-Empirical model built from 1M random interactions is saved in ???
-1. POMCP
+Empirical model built from 1M random interactions is saved in "./POMDPy/examples/sepsis/model_256.obj"
+
+1. POMCP (can change cost to any <= 0 value, init_idx specifies the start patient state)
+python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
+
 2. MCTS
+python pomcp.py --init_idx 256 --cost -0.05 --is_mdp 1
 
 
