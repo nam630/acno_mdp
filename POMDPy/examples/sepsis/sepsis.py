@@ -2,8 +2,8 @@ import math
 import random
 import numpy as np
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
-sys.path.append('/next/u/hjnam/POMDPy')
+sys.path.append('../../locf/env/sepsisSimDiabetes')
+sys.path.append('../..//POMDPy')
 import pickle
 from pomdpy.discrete_pomdp import DiscreteActionPool, DiscreteObservationPool
 from pomdpy.discrete_pomdp import DiscreteAction
@@ -190,15 +190,11 @@ class Sepsis():
 
     '''
     Can use a plug-in empirical simulator
-    Inp: action (dtype int), state (dtype int)
+    Input: action (dtype int), state (dtype int)
     1) # of samples
     2) exact noise level
     '''
     def empirical_simulate(self, state, action):
-        # return self.sim.step(action, state)
-        # rew = 0
-        # if action > 7:
-        #    rew += self.cost
         action = action % 8
         if (state, action) in self.empi_model.keys():
             p = self.empi_model[(state, action)]
@@ -213,18 +209,6 @@ class Sepsis():
         # only add env reward (x observation cost)
         rew = temp.env.calculateReward()
         return BoxState(int(state), is_terminal=bool(rew != 0), r=rew), True
-
-    # def make_next_state(self, state, action):
-    #    if state.terminal:
-    #        return state.copy(), False
-    #    if type(action) is not int:
-    #        action = action.bin_number
-    #    if type(state) is not int:
-    #        state = state.position
-    #    # this should be an imagined step in the learned simulator
-    #    _, rew, done, info = self.empirical_simulate(action, state)
-    #    next_pos = info['true_state'] 
-    #    return BoxState(int(next_pos), is_terminal=done, r=rew), True
 
     '''
     In the real env, observation = state \cup NA
@@ -251,10 +235,6 @@ class Sepsis():
         if type(state) is not int:
             state = state.position
         return self.empirical_simulate(state, action)
-    #    # should be through the learned simulator
-    #    _, _, _, info = self.empirical_simulate(action, state)
-    #    next_position = info['true_state']
-    #    return int(next_position)
 
     def get_all_observations(self):
         obs = {}
@@ -292,7 +272,7 @@ class Sepsis():
         else:
             result.next_state, is_legal = self.make_next_position(state, action)
         
-        ###  for true runs #####
+        ###  for true/eval runs #####
         # result.next_state, is_legal = self.take_real_state(state, action)
         ########################
         
@@ -302,19 +282,6 @@ class Sepsis():
         result.is_terminal = result.next_state.terminal
         return result, is_legal
 
-    
-    '''
-    def mdp_generate_step(self, state, action):
-        if type(action) is int:
-            action = BoxAction(action)
-        result = StepResult()
-        result.next_state, is_legal = self.make_next_position(state, action)
-        result.action = action.copy()
-        result.observation = self.make_observation(action, result.next_state, always_obs=True)
-        result.reward = self.make_reward(state, action, result.next_state, is_legal, always_obs=True)
-        result.is_terminal = result.next_state.terminal
-        return result, is_legal
-    '''
 
     def reset_for_simulation(self):
         pass
