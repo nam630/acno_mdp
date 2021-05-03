@@ -1,4 +1,15 @@
 # acno_mdp
+
+Credits:
+- DVRL encoder & a2c is slighlty adapted from https://github.com/maximilianigl/DVRL (Igl et al)
+- Monte-Carlo Tree Search and POMDP tree search code is from https://github.com/pemami4911/POMDPy.
+@ARTICLE{emami2015pomdpy,
+  author = {Emami, Patrick and Hamlet, Alan J., and Crane, Carl},
+  title = {POMDPy: An Extensible Framework for Implementing POMDPs in Python},
+  year = {2015},
+}
+- Sepsis simulator code is from https://github.com/clinicalml/gumbel-max-scm.
+
 Conda packages and versions used for generating the reported results are shared in conda.yml (Note not all the packages are needed).
 
 To run the known observation belief encoder
@@ -21,5 +32,3 @@ python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 
 2. MCTS
 python pomcp.py --init_idx 256 --cost -0.05 --is_mdp 1
-
-
