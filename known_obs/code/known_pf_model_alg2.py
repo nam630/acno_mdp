@@ -89,7 +89,7 @@ class DVRLPolicy(model.Policy):
             if self.halved_acts: # know only 2 actions (dx, dy) affect the agent dynamics
                 enc_actions -= 1
                 
-        self.action_encoding=128
+        self.action_encoding=action_encoding
         self.action_encoder = nn.Sequential(
                 nn.Linear(enc_actions, action_encoding),
                 nn.ReLU()
