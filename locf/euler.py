@@ -18,7 +18,7 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler = 100 # number of euler episodes
+N_euler = 5000 # number of euler episodes
 
 ''' 
 Test with a dummy env
@@ -157,7 +157,7 @@ Main function
 initializes to all 0's 
 also takes actions in the env and updates n, p_sum, r_sum
 '''
-def euler(verbose=False):
+def euler(verbose=True):
     stats = []
     # keep r_var separately from r_sum
     pi, n, p_sum, r_sum, r_var = initialize()
@@ -172,8 +172,8 @@ def euler(verbose=False):
         print("one eps: ", end - start, "reward: ", reward)
     if verbose:
         print(stats)
-        pickle.dump(stats, open("reward_0.obj","wb"))
-        pickle.dump(pi, open("policy_0.obj", "wb"))
+        pickle.dump(stats, open("reward_1.obj","wb"))
+        pickle.dump(pi, open("policy_1.obj", "wb"))
 
 
 def explore_pi(pi, n, p_sum, r_sum, r_var, n_global, p_global, r_global, goal_s, goal_a):
@@ -244,8 +244,8 @@ def main(goal):
     # parent = "pomdp_{}".format(goal)
     # pickle.dump(T, open("pomdp_{}/true_t.obj", "wb"))
     # pickle.dump(R, open("pomdp_{}/true_r.obj", "wb"))
-    pomdp(goal)
-    # euler()
+    # pomdp(goal)
+    euler()
 
 if __name__ == "__main__":
     import argparse
