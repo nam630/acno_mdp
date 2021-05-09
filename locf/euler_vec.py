@@ -63,13 +63,13 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     temp_v = np.array(S * [ A * [v_upper]])
     temp = p_hat * ((temp_v - exp_v_upper[:,:,np.newaxis]) ** 2)
     denom = np.maximum(n_mat - 1, np.ones((n_mat.shape)))
-    phi = np.sqrt(np.sum(temp, axis=2) * 2 * C / n_denom) + C / (3 * denom)
+    phi = np.sqrt(np.sum(temp, axis=2) * 2 * C / n_denom) + H * C / (3 * denom) # multiply second term by H
 
     # find v_dist (S x A) between upper and lower v's
     v_dist = np.sqrt(p_hat @ ((v_upper - v_lower) ** 2))
     
-    # find b_pv S x A
-    b_pv = phi + 1/np.sqrt(n_denom) * (C / np.sqrt(n_denom) + C * v_dist)
+    # find b_pv S x A, 4J+Bp for numerator, weighted by Bv
+    b_pv = phi + 1/np.sqrt(n_denom) * (JB / np.sqrt(n_denom) + Bv * v_dist)
     
     # find b_r S x A
     var_r = find_reward_var(r_var)
@@ -82,11 +82,10 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     Q = np.minimum(np.ones((S, A)) * H - t, temp_Q)
     # S; pi(s) = a (always chooses lowest idx action)
     pi = np.argmax(Q, 1) 
-    v_upper = np.max(Q, 1)
     
     # find v_lower
-    # S x S'
     n_star = np.stack([n_mat[state,i] for (state,i) in enumerate(pi)]) 
+    # S x S'
     p_star = np.stack([p_hat[state,i,:] for (state, i) in enumerate(pi)])
     exp_v_lower = p_star @ v_lower
     # S
@@ -98,18 +97,19 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     n_denom = np.maximum(np.ones((S,)), n_star)
     n_temp = np.maximum(np.ones((S,)), n_star - 1)
     # phi, S
-    phi = np.sqrt(temp * 2 * C / n_denom) + C / (3 * n_temp)
-    # v_dist S
+    phi = np.sqrt(temp * 2 * C / n_denom) + H * C / (3 * n_temp) # multiply second term by H
+    # v_dist S (v_upper/lower from previous episode)
     v_dist = np.sqrt(p_star @ (v_upper - v_lower)**2)
     # b_pv S
-    b_pv = phi + 1 / np.sqrt(n_denom) * (C / np.sqrt(n_denom) + C * v_dist)
+    b_pv = phi + 1 / np.sqrt(n_denom) * (JB / np.sqrt(n_denom) + Bv * v_dist)
     
     # select a* from S x A (col 1)
     r_hat = np.stack([r_temp[s, i] for (s, i) in enumerate(pi)])
     # b_r, S
-    r_var = find_reward_var(r_var, actions_list=pi)
-    b_r = np.sqrt(2 * r_var * C / np.sqrt(n_denom)) + (7 * C) / np.sqrt(n_temp)
+    var_r = find_reward_var(r_var, actions_list=pi)
+    b_r = np.sqrt(2 * var_r * C / n_denom) + (7 * C) / (3 * n_temp)
     # S
+    v_upper = np.max(Q, 1)
     v_lower = np.minimum(np.zeros((S)), r_hat - b_r + p_star @ v_lower - b_pv)
     return pi, v_upper, v_lower
 
