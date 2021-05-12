@@ -132,53 +132,141 @@ class MDP(object):
         # state_categs = [0, 0, 1, 2, antibiotic_state, vaso_state, vent_state]
         return State(state_categs=state_categs, diabetic_idx=diabetic_idx)
 
-    def transition_antibiotics_on(self):
+    def transition_antibiotics_on(self, probs):
         '''
         antibiotics state on
         heart rate, sys bp: hi -> normal w.p. .5
         '''
         self.state.antibiotic_state = 1
-        r = 0.5
-        if self.state.hr_state == 2 and np.random.uniform(0,1) < r:
-            self.state.hr_state = 1
-        if self.state.sysbp_state == 2 and np.random.uniform(0,1) < r:
-            self.state.sysbp_state = 1
+        
+        temp = np.zeros((720,))
+        temp_probs = []
 
-    def transition_antibiotics_off(self):
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+
+                r = 0.5
+                if self.state.hr_state == 2:
+                    temp_probs.append((idx, pr *r))
+                    self.state.hr_state = 1
+                    temp_probs.append((self.state.get_state_idx(), pr*r))
+                else:
+                    temp_probs.append((idx, pr))
+
+        for (x, y) in temp_probs:
+            if self.state.sysbp_state == 2:
+                self.state.set_state_by_idx(x, idx_type='obs', diabetic_idx=0)
+                temp[self.state.get_state_idx()] += y * r
+                self.state.sysbp_state = 1
+                temp[self.sate.get_state_idx()] += y *r
+            else:
+                temp[x] = y
+
+        # assert(sum(temp) == 1.)
+        return temp
+
+
+    def transition_antibiotics_off(self, probs):
         '''
         antibiotics state off
         if antibiotics was on: heart rate, sys bp: normal -> hi w.p. .1
         '''
-        if self.state.antibiotic_state == 1:
-            r = 0.1
-            if self.state.hr_state == 1 and np.random.uniform(0,1) < r:
-                self.state.hr_state = 2
-            if self.state.sysbp_state == 1 and np.random.uniform(0,1) < r:
-                self.state.sysbp_state = 2
-            self.state.antibiotic_state = 0
+        def set_new_idx(temp, pr):
+            if self.state.antibiotic_state == 1:
+                r = 0.1
+                probs = []
+                if self.state.hr_state == 1: # w.p. r
+                    probs.append((self.state.get_state_idx(), pr * (1-r)))
+                    self.state.hr_state = 2
+                    probs.append((self.state.get_state_idx(), pr * r))
+                else:
+                    probs.append((self.state.get_state_idx(), pr))
+                new_probs = []
+                if self.state.sysbp_state == 1: # w.p. r
+                    for (x, y) in probs:
+                        self.state.set_state_by_idx(x, idx_type='obs', diabetic_idx=0)
+                        new_probs.append((self.state.get_state_idx(), y * (1-r)))
+                        self.state.sysbp_state = 2
+                        new_probs.append((self.state.get_state_idx(), y * r))
+                else:
+                    new_probs = probs.copy()
 
-    def transition_vent_on(self):
+                for (x, y) in new_probs:
+                    self.state.set_state_by_idx(x, idx_type='obs', diabetic_idx=0)
+                    self.state.antibiotic_state = 0
+                    new_idx = self.state.get_state_idx()
+                    temp[new_idx] += y 
+            
+            else:
+                self.state.antibiotic_state = 0
+                idx = self.state.get_state_idx()
+                temp[idx] += pr
+            return temp
+
+        temp = np.zeros((720,))
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                temp = set_new_idx(temp, pr)
+        # assert(sum(temp) == 1.0)
+        return temp
+
+    def transition_vent_on(self, probs):
         '''
         ventilation state on
         percent oxygen: low -> normal w.p. .7
         '''
-        self.state.vent_state = 1
-        r = 0.7
-        if self.state.percoxyg_state == 0 and np.random.uniform(0,1) < r:
-            self.state.percoxyg_state = 1
+        def set_new_state(temp, pr):
+            r = 0.7
+            cur_idx = self.state.get_state_idx()
+            if self.state.percoxyg_state == 0:
+                self.state.percoxyg_state = 1
+                temp_idx = self.state.get_state_idx()
+                temp[temp_idx] += pr * r
+            temp[cur_idx] += pr * (1-r)
+            return temp
 
-    def transition_vent_off(self):
+        self.state.vent_state = 1
+        temp = np.zeros((720,))
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                self.state_set_by_idx(idx)
+                temp = set_new_state(temp, pr)
+        return temp
+
+    def transition_vent_off(self, probs):
         '''
         ventilation state off
         if ventilation was on: percent oxygen: normal -> lo w.p. .1
         '''
-        r = 0.1
-        if self.state.vent_state == 1:
-            if self.state.percoxyg_state == 1 and np.random.uniform(0,1) < r:
-                self.state.percoxyg_state = 0
-            self.state.vent_state = 0
+        def set_new_idx(temp, next_pr):
+            temp_id = self.state.get_state_idx()
+            temp[temp_id] += next_pr
+            return temp
 
-    def transition_vaso_on(self):
+        def get_next_state_probs(temp, pr):
+            if self.state.vent_state == 1 and self.state.percoxyg_state == 1:
+                r = 0.1
+                self.state.vent_state = 0
+                temp = set_new_idx(temp, pr * (1-r))
+                self.state.percoxyg_state = 0
+                temp = set_new_idx(temp, pr * r)
+            else:        
+                self.state.vent_state = 0
+                temp = set_new_idx(temp, pr)
+            return temp
+        
+        temp = np.zeros((720,))
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                temp = get_next_state_probs(temp, pr)
+        
+        # assert(sum(temp) == 1.0)
+        return temp
+
+    def transition_vaso_on(self, probs):
         '''
         vasopressor state on
         for non-diabetic:
@@ -188,15 +276,37 @@ class MDP(object):
                 lo -> normal w.p. .5, lo -> hi w.p. .4
             raise blood glucose by 1 w.p. .5
         '''
-        self.state.vaso_state = 1
-        if self.state.diabetic_idx == 0:
-            dib_r = 0.7
-            if np.random.uniform(0,1) < dib_r:
+        def set_new_idx(temp, next_pr):
+            temp_id = self.state.get_state_idx()
+            temp[temp_id] += next_pr
+            return temp
+
+        def get_next_state_probs(temp, pr):
+            self.state.vaso_state = 1
+            if self.state.diabetic_idx == 0:
+                dib_r = 0.7
                 if self.state.sysbp_state == 0:
+                    temp = set_new_idx(temp, pr * (1-dib_r))
                     self.state.sysbp_state = 1
+                    temp = set_new_idx(temp, pr * dib_r)
+
                 elif self.state.sysbp_state == 1:
+                    temp = set_new_idx(temp, pr * (1-dib_r))
                     self.state.sysbp_state = 2
-        else:
+                    temp = set_new_idx(temp, pr * (1-dib_r))
+                return temp
+
+        temp = np.zeros((720,))
+        for (idx, pr) in enumerate(probs):
+            if pr > 0 :
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                temp = get_next_state_probs(temp, pr)
+            # else:
+                # print("non zero diabetic idx")
+                # assert(False)
+        # assert(sum(temp) == 1.)
+        return temp
+        '''
             if self.state.sysbp_state == 1:
                 sys_r = 0.9
                 if np.random.uniform(0,1) < sys_r:
@@ -212,30 +322,112 @@ class MDP(object):
             g_r = 0.5
             if np.random.uniform(0,1) < g_r:
                 self.state.glucose_state = min(4, self.state.glucose_state + 1)
+        '''
 
-    def transition_vaso_off(self):
+    def transition_vaso_off(self, probs):
         '''
         vasopressor state off
         if vasopressor was on:
             for non-diabetics, sys bp: normal -> low, hi -> normal w.p. .1
             for diabetics, blood pressure falls by 1 w.p. .05 instead of .1
         '''
-        if self.state.vaso_state == 1:
-            r = 0.1
+        def set_new_idx(temp, pr):
             if self.state.diabetic_idx == 0:
-                if np.random.uniform(0,1) < r:
-                    self.state.sysbp_state = max(0, self.state.sysbp_state - 1)
+                r = 0.1
+                temp_idx = self.state.get_state_idx()
+                self.state.vaso_state = 0
+                temp[self.state.get_state_idx()] += pr * (1-r)
+                
+                self.state.set_state_by_idx(temp_idx, idx_type='obs', diabetic_idx=0)
+                self.state.sysbp_state = max(0, self.state.sysbp_state - 1)
+                self.state.vaso_state = 0
+                temp[self.state.get_state_idx()] += pr * r
+                
             else:
+                print("Diabetix idx should always be 0!")
+                assert(False)
+                '''
                 r = 0.05
                 if np.random.uniform(0,1) < r:
                     self.state.sysbp_state = max(0, self.state.sysbp_state - 1)
-            self.state.vaso_state = 0
+                '''
+            return temp
+
+        temp = np.zeros((720,))
+
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                if self.state.vaso_state == 1:
+                    temp = set_new_idx(temp, pr)
+                else:
+                    temp[idx] += pr
+        # print(temp)
+        # assert(sum(temp) == 1)
+        return temp
+
+    def _next_transition(self, old, state, rate):
+        temp = []
+        for (idx, pr) in old:
+            self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+            if state == 'hr':
+                self.state.hr_state = max(0, self.state.hr_state - 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                self.state.hr_state = min(2, self.state.hr_state + 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                temp.append((idx, pr * (1 - 2 * rate)))
+            elif state == 'sysbp':
+                self.state.sysbp_state = max(0, self.state.sysbp_state - 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                self.state.sysbp_state = min(2, self.state.sysbp_state + 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                temp.append((idx, pr * (1- 2 * rate)))
+            elif state == 'percoxyg':
+                self.state.percoxyg_state = max(0, self.state.percoxyg_state - 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                self.state.percoxyg_state = min(1, self.state.percoxyg_state + 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                temp.append((idx, pr * (1- 2 * rate)))
+            elif state == 'glucose':
+                self.state.glucose_state = max(0, self.state.glucose_state - 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                self.state.set_state_by_idx(idx, idx_type='obs', diabetic_idx=0)
+                self.state.glucose_state = min(1, self.state.glucose_state + 1)
+                temp.append((self.state.get_state_idx(), pr * rate))
+                temp.append((idx, pr * (1- 2 * rate)))
+        _temp = {}
+        for (idx, pr) in temp:
+            if idx not in _temp.keys():
+                _temp[idx] = pr
+            else:
+                _temp[idx] += pr
+
+        return _temp.items()
 
     def transition_fluctuate(self, hr_fluctuate, sysbp_fluctuate, percoxyg_fluctuate, \
-        glucose_fluctuate):
+        glucose_fluctuate, probs):
         '''
         all (non-treatment) states fluctuate +/- 1 w.p. .1
         exception: glucose flucuates +/- 1 w.p. .3 if diabetic
+        '''
+        # only retain non zero prob state
+        temp = []
+        for (idx, pr) in enumerate(probs):
+            if pr > 0:
+                temp.append((idx, pr))
+        if hr_fluctuate:
+            temp = self._next_transition(temp, 'hr', 0.1)
+        if sysbp_fluctuate:
+            temp = self._next_transition(temp, 'sysbp', 0.1)
+        if percoxyg_fluctuate:
+            temp = self._next_transition(temp, 'percoxyg', 0.1)
+        if glucose_fluctuate:
+            temp = self._next_transition(temp, 'glucose', 0.1)
+        return temp
+        
         '''
         if hr_fluctuate:
             hr_prob = np.random.uniform(0,1)
@@ -243,18 +435,21 @@ class MDP(object):
                 self.state.hr_state = max(0, self.state.hr_state - 1)
             elif hr_prob < 0.2:
                 self.state.hr_state = min(2, self.state.hr_state + 1)
+        
         if sysbp_fluctuate:
             sysbp_prob = np.random.uniform(0,1)
             if sysbp_prob < 0.1:
                 self.state.sysbp_state = max(0, self.state.sysbp_state - 1)
             elif sysbp_prob < 0.2:
                 self.state.sysbp_state = min(2, self.state.sysbp_state + 1)
+        
         if percoxyg_fluctuate:
             percoxyg_prob = np.random.uniform(0,1)
             if percoxyg_prob < 0.1:
                 self.state.percoxyg_state = max(0, self.state.percoxyg_state - 1)
             elif percoxyg_prob < 0.2:
                 self.state.percoxyg_state = min(1, self.state.percoxyg_state + 1)
+        
         if glucose_fluctuate:
             glucose_prob = np.random.uniform(0,1)
             if self.state.diabetic_idx == 0:
@@ -267,28 +462,34 @@ class MDP(object):
                     self.state.glucose_state = max(0, self.state.glucose_state - 1)
                 elif glucose_prob < 0.6:
                     self.state.glucose_state = min(4, self.state.glucose_state + 1)
+        '''
 
-    ''' Original reward is -1 for death, 0 for neither, 1 for discharge
-    Modify this to be 0 for death, 0.5 for neither after 5 steps, 1 for discharge
-    '''
     def calculateReward(self):
         num_abnormal = self.state.get_num_abnormal()
         if num_abnormal >= 3:
             # print("NOOOO FAILED")
-            return -0.5 # -1 
+            return -1 # works with -100
         elif num_abnormal == 0 and not self.state.on_treatment():
             # print('YESSSS CALCULATE')
-            return 0.5 
+            return 1 # works w/ 100
         return 0
 
-    def transition(self, action):
+    def transition(self, action, p=1.0):
+        cur_reward = self.calculateReward()
+
+        # start with 1.0 prob and for this action, change the probability to the next state
         self.state = self.state.copy_state() 
+        probs = np.zeros((720,))
+        state_idx = self.state.get_state_idx()
+        assert(state_idx < 720)
+        probs[state_idx] = 1.0
+
         if action.antibiotic == 1:
-            self.transition_antibiotics_on()
+            probs = self.transition_antibiotics_on(probs)
             hr_fluctuate = False
             sysbp_fluctuate = False
         elif self.state.antibiotic_state == 1:
-            self.transition_antibiotics_off()
+            probs = self.transition_antibiotics_off(probs)
             hr_fluctuate = False
             sysbp_fluctuate = False
         else:
@@ -296,10 +497,10 @@ class MDP(object):
             sysbp_fluctuate = True
 
         if action.ventilation == 1:
-            self.transition_vent_on()
+            probs = self.transition_vent_on(probs)
             percoxyg_fluctuate = False
         elif self.state.vent_state == 1:
-            self.transition_vent_off()
+            probs = self.transition_vent_off(probs)
             percoxyg_fluctuate = False
         else:
             percoxyg_fluctuate = True
@@ -307,15 +508,28 @@ class MDP(object):
         glucose_fluctuate = True
 
         if action.vasopressors == 1:
-            self.transition_vaso_on()
+            probs = self.transition_vaso_on(probs)
             sysbp_fluctuate = False
             glucose_fluctuate = False
         elif self.state.vaso_state == 1:
-            self.transition_vaso_off()
+            probs = self.transition_vaso_off(probs)
             sysbp_fluctuate = False
+        
+        # print(state_idx, sum(probs))
         # what if turn off transition fluctuate?
-        self.transition_fluctuate(hr_fluctuate, sysbp_fluctuate, percoxyg_fluctuate, glucose_fluctuate) 
-        return self.calculateReward()
+        probs = self.transition_fluctuate(hr_fluctuate, sysbp_fluctuate, percoxyg_fluctuate, glucose_fluctuate, probs) 
+        _probs = np.zeros((720,))
+        # _, y = zip(*probs)
+        # denom = sum(y)
+        # print(denom)
+        for (idx, pr) in probs:
+            _probs[int(idx)] = pr # / denom
+        # import pdb;pdb.set_trace()
+        print(sum(_probs))
+        # assert(sum(_probs) == 1.)
+        # reward is only given for s (a doesn't matter!)
+        # return probs from every state s --> 720 array
+        return _probs, cur_reward # self.calculateReward()
 
     def select_actions(self):
         assert self.policy_array is not None
