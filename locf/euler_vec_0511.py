@@ -26,7 +26,7 @@ EVAL_N = 100
 verbose = True
 # obs_cost_list = [0.0, 0.05, 0.1, 0.2]
 # obs_cost = 0.05
-DIR = 'mdp_0511/new_{}_2/'.format(C)
+DIR = 'mdp_0512/c{}_discounted_0/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
@@ -144,16 +144,25 @@ def initialize():
     return n, p_sum, r_sum, r_var
 
 def transition(env, a):
+    # if already in terminal, just keep incurring 0.5 and stay in the same state
+    if env.env.state.check_absorbing_state():
+        reward = env.env.calculateReward()
+        if reward > 0: # terminal
+            reward = 0.5
+        if reward < 0: # terminal
+            reward = 0.5
+        return env.env.state.get_state_idx(), reward, True
+
     state, reward, done, info = env.step(a) 
     if not done:
-        reward = 0.1 # for every surviving step
+        reward = 0.5 # for neither
     if done:
-        if reward < 0:
+        if reward < 0: # death-terminal
             reward = 0.0
-        elif reward > 0:
+        elif reward > 0: # recovery-terminal
             reward = 1.0
-        else:
-            reward = 0.1
+        else: # neither 
+            reward = 0.5
     return state, reward, done
    
 
@@ -163,11 +172,13 @@ def execute_pi(pi, n_mat, p_sum, r_sum, r_var):
     env = SepsisEnv(obs_cost=0, no_missingness=True)
     state = env.reset(INIT_STATE)
     reward = 0.0
-    while t > 0:
+    change_t = True
+    for i in range(5):
         # act = pi[(state, t)]
-        act = int(pi[state, t-1])
+        act = int(pi[state, H-1-i])
         next_state, rew, done = transition(env, act)
-        t -= 1
+        if change_t:
+            t -= 1
         # r_sum[(state, act)] += reward
         r_sum[state, act] += rew
         r_var[(state, act)].append(rew)
@@ -178,7 +189,7 @@ def execute_pi(pi, n_mat, p_sum, r_sum, r_var):
         # p_sum[(state, act)][next_state] += 1
         state = next_state
         if done:
-            break
+            change_t = False
     return reward, H-t, n_mat, p_sum, r_sum, r_var
 
 
@@ -202,15 +213,17 @@ def evaluate_pi(pi):
     env = SepsisEnv(obs_cost=0, no_missingness=True)
     state = env.reset(INIT_STATE)
     reward = 0.
-    while t > 0:
+    change_t = True
+    for i in range(5):
         # act = pi[(state, t)]
-        act = int(pi[state, t-1])
+        act = int(pi[state, H-1-i])
         next_state, rew, done = transition(env, act)
         state = next_state
         reward += rew
-        t -= 1
+        if change_t:
+            t -= 1
         if done:
-            break
+            change_t = False
     return reward, H-t
 
 '''

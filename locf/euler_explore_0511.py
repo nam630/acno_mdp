@@ -18,11 +18,11 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler =  50000 # number of euler episodes
+N_euler =  50001 # number of euler episodes
 MIN_VISITS = 10
 # each state needs to be observed 10 times (if all visited then do random action)
 LOG_K = 50
-DIR = 'pomdp_0511/{}_new_2/'.format(C)
+DIR = 'pomdp_0512/{}_new_3/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
@@ -140,89 +140,47 @@ def initialize():
     return n, p_sum, r_sum, r_var
 
 def transition(env, a):
+    # absorbing state (death or discharged)
+    if env.env.state.check_absorbing_state():
+        reward = env.env.calculateReward()
+        if reward > 0:
+            reward = 0.5
+        if reward < 0:
+            reward = 0.5
+        return env.env.state.get_state_idx(), reward, True
+
+    # otherwise take action
     state, reward, done, info = env.step(a) 
     if not done:
-        reward = 0.1
+        reward = 0.5
     if done:
         if reward < 0:
-            reward = 0
+            reward = 0.0
         elif reward > 0:
-            reward = 1
+            reward = 1.0
         else:
-            reward = 0.1
+            reward = 0.5
     return state, reward, done
-    # return np.random.choice(S, 1)[0], np.random.normal(0, 1, 1)[0]
 
-def execute_pi(pi, n_mat, p_sum, r_sum, r_var):
-    # initialize with a fixed start state 
-    t = H
-    env = SepsisEnv(obs_cost=0, no_missingness=True)
-    state = env.reset(INIT_STATE)
-    reward = 0.0
-    while t > 0:
-        # act = pi[(state, t)]
-        act = int(pi[state, t-1])
-        next_state, rew, done = transition(env, act)
-        t -= 1
-        # r_sum[(state, act)] += reward
-        r_sum[state, act] += rew
-        r_var[(state, act)].append(rew)
-        reward += rew
-        n_mat[state, act] += 1
-        p_sum[state, act, next_state] += 1
-        # n[(state, act)] += 1
-        # p_sum[(state, act)][next_state] += 1
-        state = next_state
-        if done:
-            return reward, H-t, n_mat, p_sum, r_sum, r_var
-    # return reward, n, p_sum, r_sum, r_var
-
-def find_eval_pi(n_mat, p_sum, r_sum):
-    pi = np.zeros((S, H)) # randomly assign action?
-    n_mat = np.maximum(np.ones((S, A)), n_mat)
-    p_hat = p_sum / n_mat[:,:,np.newaxis]
-    r_hat = r_sum/ n_mat
-    v = np.zeros((S))
-    for t in range(H, 0, -1): # t from H~1
-        Q = r_hat + p_hat @ v
-        pi_t = np.argmax(Q, 1) 
-        v = np.max(Q, 1)
-        pi[:, t-1] = pi_t 
-    return pi
-
-
-def evaluate_pi(pi, obs_cost=0.):
-    # initialize with a fixed start state 
-    t = H
-    env = SepsisEnv(obs_cost=0, no_missingness=True)
-    state = env.reset(INIT_STATE)
-    reward = 0.
-    while t > 0:
-        # act = pi[(state, t)]
-        act = int(pi[state, t-1])
-        next_state, rew, done = transition(env, act)
-        reward += rew
-        state = next_state
-        t -= 1
-        if done:
-            return reward
-    return reward
 
 def explore_pi(pi, n, p_sum, r_sum, r_var, n_global, p_global, r_global, goal_s, goal_a):
     env = SepsisEnv(obs_cost=0, no_missingness=True)
     state = env.reset(INIT_STATE)
     t = H
     true_rewards = 0.
+    change_t = True
 
-    while t > 0:
-        act = int(pi[state, t-1])
+    for i in range(H):
+        act = int(pi[state, H-1-i])
         next_state, rew, done = transition(env, act)
-        t -= 1
+        
+        if change_t:
+            t -= 1
         
         reward = 0.
         if next_state == goal_s:
             reward = 1.0
-            done = True
+            
         r_sum[state, act] += reward
         r_var[state, act].append(reward)
         n[state, act] += 1
@@ -235,8 +193,11 @@ def explore_pi(pi, n, p_sum, r_sum, r_var, n_global, p_global, r_global, goal_s,
         true_rewards += rew
         state = next_state
         
-        if done:
+        if state == goal_s:
             break
+
+        if done:
+            change_t = False
 
     return n, p_sum, r_sum, r_var, n_global, p_global, r_global, true_rewards, H-t 
 
@@ -245,18 +206,21 @@ def random_explore(n_global, p_global, r_global):
     env = SepsisEnv(obs_cost=0, no_missingness=True)
     state = env.reset(INIT_STATE)
     t = H
+    change_t = True
     reward = 0.
-    while t > 0:
+    for i in range(H):
         act = np.random.choice(A, 1)[0]
         next_state, rew, done = transition(env, act)
-        t -= 1
+        if change_t:
+            t -= 1
         n_global[state, act] += 1
         p_global[state, act, next_state] += 1
         r_global[state, act] += rew
         state = next_state
         reward += rew
         if done:
-            break
+            change_t = False
+
     return n_global, p_global, r_global, reward, H-t
 
 def euler_explore(n, p_sum, r_sum, r_var, n_global, p_global, r_global, s, a):
