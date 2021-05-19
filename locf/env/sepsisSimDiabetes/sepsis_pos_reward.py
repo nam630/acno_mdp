@@ -1,10 +1,12 @@
 import numpy as np, random
-from MDP import MDP
+from MDP_pos_reward import MDP
 from State import State
 from Action import Action
 
 from gym import spaces
 import gym
+
+CONSTANT = 0.25
 
 class SepsisEnv(gym.Env):
     def __init__(self,
@@ -49,9 +51,7 @@ class SepsisEnv(gym.Env):
         reward = self.env.transition(Action(action_idx=a))
         state = self.env.state.get_state_idx()
         # Add +1 to every vital value since 0 is used for NULL
-        # made changes on May 18 for sepsis DRQN(POMDP-RL)
-        done = bool(reward == 0 or reward == 1.0)
-        done = done or bool(self.timestep == self.max_t) # or reward != 0)
+        done = bool(self.timestep == self.max_t or reward != CONSTANT)
         if obs:
             self.obs = state
             reward += self.cost

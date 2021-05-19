@@ -190,7 +190,7 @@ class BeliefTreeSolver(Solver):
 
         # If the new root does not yet have the max possible number of particles add some more
         if child_belief_node.state_particles.__len__() < self.model.max_particle_count:
-
+            print("adding new particles")
             num_to_add = self.model.max_particle_count - child_belief_node.state_particles.__len__()
 
             # Generate particles for the new root node (*** CHANGE ***)

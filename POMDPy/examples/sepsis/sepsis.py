@@ -127,13 +127,13 @@ class Sepsis():
         self.max_steps = 5 
         self.t = 0
         self.seed = random.seed() 
-        self.n_start_states = 50 # all new runs with 100 # 2000
+        self.n_start_states = 2000
         self.ucb_coefficient = 3.0
-        self.min_particle_count = 50 # 100 # 1000
-        self.max_particle_count = 50 # 100 # 2000
+        self.min_particle_count = 1000
+        self.max_particle_count = 2000
         self.max_depth = 5
         self.action_selection_timeout = 60
-        self.particle_selection_timeout = 0.25
+        self.particle_selection_timeout = 0.2
         self.n_sims = 1000
         if is_mdp == 0:
             self.solver = 'POMCP'
@@ -146,7 +146,7 @@ class Sepsis():
         self.epsilon_minimum = 0.1
         self.epsilon_decay = 0.9
         self.discount = 0.7
-        self.n_epochs = 25000 # 2000 (only one of them), 100
+        self.n_epochs = 25000 # 100
         self.save = False
         self.timeout = 7200000
         
@@ -156,16 +156,13 @@ class Sepsis():
         if debug_mode:
             self.empi_model = pickle.load(open('/next/u/hjnam/locf/sepsis/0411/p_256_/256model_pi.obj','rb'))
         else: 
-            # self.t_estimates = np.load('/next/u/hjnam/locf/pomdp_0512/0.01_T_2.npy')
-            # self.r_estimates = np.load('/next/u/hjnam/locf/pomdp_0512/0.01_R_2.npy')
             # starts with an empty model 
             self.t_estimates = np.zeros((720, 8, 720))
             self.r_estimates = np.zeros((720, 8))
-            # self.n_counts = np.ones((720, 8)) * 720.
+            # use a prior of 1 for all (s, a, s') 
             self.n_counts = np.ones((720, 8)) * 720
             self.r_counts = np.zeros((720, 8))
             self.t_counts = np.ones((720, 8, 720))
-            # self.t_counts = np.ones((720, 8, 720))
             # self.t_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_T_4_r0.25.npy')
             # self.r_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_R_4_r0.25.npy')
         ################################
@@ -195,7 +192,7 @@ class Sepsis():
         self.t = 0
 
     '''
-    rejection sampling
+    Use rejection sampling to generate a new set of belief particles (from prev_particles to particles)
     '''
     def generate_particles(self, prev_belief, action, obs, n_particles, prev_particles, mdp):
         particles = []
@@ -206,31 +203,29 @@ class Sepsis():
             obs_map = action_node.observation_map
         child_node = obs_map.get_belief(obs)
         start = time.time()
-        # add particle selection timeout here
+
         print('REJECTION SAMPLING STARTED, {}'.format(obs.position))
+        
         while particles.__len__() < n_particles:
             state = random.choice(prev_particles)
             if mdp:
                 result, is_legal = self.generate_step(state, action, is_mdp=True)
             else:
                 result, is_legal = self.generate_step(state, action)
-            # if null (i.e., 720) CAN BE any state
-            # print(particles.__len__(), obs.position, result.observation.position)
+            # if null (i.e., 720) obs, any state particle CAN be added
             if result.observation.position == 720 or result.observation == obs: # obs_map.get_belief(result.observation) is child_node:
                 assert(result.next_state.position < 720)
                 particles.append(result.next_state)
-                if particles.__len__() % 200 == 0:
+                if particles.__len__() % 200 == 0: # logging for debugging
                     print(particles.__len__(), time.time() - start)
-            if time.time() - start > self.particle_selection_timeout:
+            if time.time() - start > self.particle_selection_timeout and particles.__len__() > 3:
                 print('REJECTION timeout:', time.time() - start)
                 break
         
-        # force particles to all have next state = observation
         while particles.__len__() < n_particles:
-            state = random.choice(prev_particles)
-            result, is_legal = self.generate_step(state, action)
-            result.observation = obs.copy()
-            particles.append(result.next_state)
+            state = random.choice(particles)
+            new_state = state.copy()
+            particles.append(new_state)
 
         return particles
 
@@ -241,10 +236,6 @@ class Sepsis():
     2) exact noise level
     '''
     def empirical_simulate(self, state, action):
-        # return self.sim.step(action, state)
-        # rew = 0
-        # if action > 7:
-        #    rew += self.cost
         action = action % 8
         if debug_mode:
             if (state, action) in self.empi_model.keys():

@@ -231,6 +231,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         :param n_particles:
         :return: list of particles
         """
+        print("in generate particles")
         particles = []
         action_node = previous_belief.action_map.get_action_node(action)
         if action_node is None:
@@ -241,6 +242,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
 
         while particles.__len__() < n_particles:
             # sample a random particle
+            print(particles.__len__())
             state = random.choice(prev_particles)
 
             # Now generate a step in the model, and compare the observation to the actual observation.
@@ -260,11 +262,13 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         :param n_particles:
         :return:
         """
+        print("in generate particles uninformed")
         particles = []
         obs_map = previous_belief.action_map.get_action_node(action).observation_map
         child_node = obs_map.get_belief(obs)
 
         while particles.__len__() < n_particles:
+            print(particles.__len__())
             # sample a random particle
             state = self.sample_state_uninformed()
 

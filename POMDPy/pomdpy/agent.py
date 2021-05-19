@@ -5,10 +5,28 @@ import os
 from pomdpy.pomdp import Statistic
 from pomdpy.pomdp.history import Histories, HistoryEntry
 from pomdpy.util import console, print_divider
-from experiments.scripts.pickle_wrapper import save_pkl
+# from experiments.scripts.pickle_wrapper import save_pkl
 import numpy as np
 
 module = "agent"
+
+DIR = '0518_res/pomdp/2k/r0.25_gamma_0.7_cost_0.15/'
+if not os.path.exists(DIR):
+    os.makedirs(DIR)
+
+SAVE_K = 0
+
+def action_dictionary():
+    return {
+            0: '0A_0E_0V',
+            1: '0A_0E_1V',
+            2: '0A_1E_0V',
+            3: '0A_1E_1V',
+            4: '1A_0E_0V',
+            5: '1A_0E_1V',
+            6: '1A_1E_0V',
+            7: '1A_1E_1V',
+            }
 
 class Agent:
     """
@@ -89,13 +107,13 @@ class Agent:
                     # evaluate agent
                     reward = 0.
                     discounted_reward = 0.
-                    discount = 1.0
+                    discount = 0.7
                     belief = self.model.get_initial_belief_state()
                     step = 0
                     while step < self.model.max_steps:
                         action, v_b = solver.greedy_predict(belief)
                         step_result = self.model.generate_step(action, state=state)
-
+                    
                         if not step_result.is_terminal:
                             belief = self.model.belief_update(belief, action, step_result.observation)
 
@@ -136,94 +154,96 @@ class Agent:
 
     def multi_epoch(self):
         eps = self.model.epsilon_start
-        ##################
-        Stats_discharge_path = 'result/{}_cost{}_discharge.npy'.format(self.solver_type, str(self.cost))
-        Stats_reward_path = 'result/{}_cost{}_reward.npy'.format(self.solver_type, str(self.cost))
-        Stats_obs_path = 'result/{}_cost{}_obs.npy'.format(self.solver_type, str(self.cost))
-        discharges = [] # -1 death, 0 neither, 1 discharge
-        scores = []
-        obs_frq = []
-        ##################
+        rewards = []
 
         self.model.reset_for_epoch()
-        # Take Epsilon Greedy during these epochs
         for i in range(self.model.n_epochs):
             # Reset the epoch stats
+            start = time.time()
             self.results = Results()
             if self.model.solver == 'POMCP' or self.model.solver == 'MCP':
-                eps, stats = self.run_pomcp(i + 1, eps)
-                reward, discharged, avg_obs = zip(*stats)
+                eps, reward = self.run_pomcp(i + 1, eps)
                 self.model.reset_for_epoch()
-            ##################
-            discharges.append(discharged[0])
-            scores.append(reward[0])
-            obs_frq.append(avg_obs[0])
-            ##################
+                rewards.append(reward)
             if self.experiment_results.time.running_total > self.model.timeout:
                 print("TIMEOUT")
-                #console(2, module, 'Timed out after ' + str(i) + ' epochs in ' +
-                #        self.experiment_results.time.running_total + ' seconds')
                 break
-        discharges = np.array(discharges)
-        scores = np.array(scores)
-        obs_frq = np.array(obs_frq)
-        np.save(Stats_discharge_path, discharges)
-        np.save(Stats_reward_path, scores)
-        np.save(Stats_obs_path, obs_frq)
-        print("=================================")
-        print(self.solver_type, " w/ max reward +1 and cost ", str(self.cost))
-        print("Success rate: ", str(self.model.n_epochs), str(sum(discharges>0)/len(discharges)))
-        print("Success score: ", str(self.model.n_epochs), str(np.mean(scores)))
-        print("Observation frq: ", str(np.mean(obs_frq)))
-        print("=================================")
+            print('one epoch runs for: ', time.time() - start) 
+            if i % 1000 == 0:
+                np.save(open(DIR+'{}_epoch_{}_rewards.npy'.format(SAVE_K, i), 'wb'), np.array(rewards))
+        rewards = np.array(rewards)
+        np.save(DIR+'pomcp_{}.npy'.format(SAVE_K), rewards)
         
 
     def run_pomcp(self, epoch, eps):
+        print('Epoch :', epoch)
         epoch_start = time.time()
+        
+        old_t = self.model.t_counts # 720 * 8 * 720
+        old_r = self.model.r_counts # 720 * 8
+        old_n = np.maximum(self.model.n_counts, np.ones(old_r.shape)) # 720 * 8
+        np.save(open(DIR+'{}_T.npy'.format(SAVE_K), 'wb'), old_t)
+        np.save(open(DIR+'{}_T.npy'.format(SAVE_K), 'wb'), old_t)
+        np.save(open(DIR+'{}_R.npy'.format(SAVE_K), 'wb'), old_r)
+        
+        print('needs to make sure this becomes non zero:', np.sum(old_t)) 
         # Create a new solver
         solver = self.solver_factory(self)
-
+        solver.model.t_estimates = old_t / old_n[:,:,np.newaxis]
+        solver.model.r_estimates = old_r / old_n
+        # t_estimates and r_estimates should carry over from last step (mle estimates always carry over)
+        
         # Monte-Carlo start state
         state = solver.belief_tree_index.sample_particle()
         
-        discharged = 0.0
-        obs_times = []
-        reward = 0.0
         discounted_reward = 0
-        discount = 1.0
+        reward = 0
+        discount = 1.0 # starts with 1, drops by 0.7
+        past_obs = state.position # always gives true state
 
         for i in range(self.model.max_steps):
             start_time = time.time()
 
             # Action will be of type Discrete Action
-            # This doesn't select action by eps but by ucb coefficient
-            action = solver.select_eps_greedy_action(eps, start_time)
-            # Update epsilon 
-            if eps > self.model.epsilon_minimum:
-                eps *= self.model.epsilon_decay
-
+            # Need e-greedy selection
+            action = solver.select_eps_greedy_action(eps, start_time, greedy_select=True)
+            # obs = (action.bin_number <= 7)
+            # print('true state:', state.position, 'obs:', obs, ' action: ', action_dictionary()[action.bin_number % 8])
+            
             # Only run with _true if taking step in the true env (true performance calculated here)
             mdp = bool(self.model.solver == 'MCP')
+            
+            # state only used internally for simulation, action selection based on solver belief tree index (on obs)
             step_result, is_legal = self.model.generate_step(state, action, _true=True, is_mdp=mdp)
-            ############################################################
-            obs_times.append(int(bool(action.bin_number < 8))) # 1 if observed
-            # discharge always > 0,
-            if step_result.reward > 0:
-                discharged = 1.0
-            # death always <= -1
-            if step_result.reward <= -1:
-                discharged = -1.0
 
+            discounted_reward += discount * (step_result.reward)
             reward += step_result.reward
-            discounted_reward += discount * step_result.reward
+            
+            # if the last state was unobserved, then cannot learn a new transition model
+            # every time a new state is observed, use that state to upate the mle estimates
+            if past_obs != 720 and action.bin_number < 8:
+                self.model.n_counts[past_obs, action.bin_number % 8] += 1
+                self.model.r_counts[past_obs, action.bin_number % 8] += step_result.reward
+                self.model.t_counts[past_obs, action.bin_number % 8, step_result.observation.position] += 1
+            
+            past_obs = step_result.observation.position
 
             discount *= self.model.discount
-            # Set to true step in the env
+            
+            '''
+            Set to true state from the env
+            (pomcp solver uses obs for sampling particles, view L158 of pomdpy/solvers/belief_tree_solver.py 
+            for how step_result is used in solver.update)
+            '''
             state = step_result.next_state
 
+            # Update epsilon every episode
+            if eps > self.model.epsilon_minimum:
+                eps *= self.model.epsilon_decay
+            
             # Show the step result
             self.display_step_result(i, step_result)
-
+            print(step_result.is_terminal)
             if not step_result.is_terminal or not is_legal:
                 solver.update(step_result)
 
@@ -234,7 +254,7 @@ class Agent:
             if step_result.is_terminal or not is_legal:
                 console(3, module, 'Terminated after episode step ' + str(i + 1))
                 break
-
+        
         self.results.time.add(time.time() - epoch_start)
         self.results.update_reward_results(reward, discounted_reward)
 
@@ -250,7 +270,9 @@ class Agent:
         self.experiment_results.undiscounted_return.add(self.results.undiscounted_return.running_total)
         self.experiment_results.discounted_return.count += (self.results.discounted_return.count - 1)
         self.experiment_results.discounted_return.add(self.results.discounted_return.running_total)
-        return eps, zip([reward], [discharged], [float(sum(obs_times))/len(obs_times)])
+        print(discounted_reward)
+        return eps, discounted_reward
+
 
     def run_value_iteration(self, solver, epoch, evaln=False):
         run_start_time = time.time()

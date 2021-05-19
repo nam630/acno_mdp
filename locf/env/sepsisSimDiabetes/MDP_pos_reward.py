@@ -271,19 +271,13 @@ class MDP(object):
     ''' Original reward is -1 for death, 0 for neither, 1 for discharge
     Modify this to be 0 for death, 0.5 for neither after 5 steps, 1 for discharge
     '''
-    # made changes on May 18 for sepsis DRQN(POMDP-RL runs)
     def calculateReward(self):
         num_abnormal = self.state.get_num_abnormal()
         if num_abnormal >= 3:
-            return 0
-            # print("NOOOO FAILED")
-            # return -0.5 # -1 
+            return 0.0
         elif num_abnormal == 0 and not self.state.on_treatment():
             return 1.0
-            # print('YESSSS CALCULATE')
-            # return 0.5 
         return 0.25
-        # return 0
 
     def transition(self, action):
         self.state = self.state.copy_state() 

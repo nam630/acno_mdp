@@ -73,7 +73,7 @@ class POMCP(BeliefTreeSolver):
         else:
             return self.model.ucb_coefficient * np.sqrt(old_div(log_n, action_map_entry_visit_count))
 
-    def select_eps_greedy_action(self, eps, start_time):
+    def select_eps_greedy_action(self, eps, start_time, greedy_select=False):
         """
         Starts off the Monte-Carlo Tree Search and returns the selected action. If the belief tree
                 data structure is disabled, random rollout is used.
@@ -114,7 +114,11 @@ class POMCP(BeliefTreeSolver):
                 f['action_val'][-1:] = act_vals
         '''
         # this always selects greedy (no epsilon)
-        return ucb_action(self, self.belief_tree_index, True)
+        acts =  ucb_action(self, self.belief_tree_index, True)
+        if greedy_select:
+            if np.random.random() < eps:
+                acts.bin_number = np.random.choice(16) # of 16 action choices
+        return acts
 
     def simulate(self, belief_node, eps, start_time):
         """
