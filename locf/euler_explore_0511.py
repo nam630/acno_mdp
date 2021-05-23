@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
-from env.sepsisSimDiabetes.sepsis_tabular import SepsisEnv 
+from env.sepsisSimDiabetes.sepsis_pos_reward import SepsisEnv 
 import time
 import pickle
 import os
@@ -18,11 +18,11 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler =  50001 # number of euler episodes
-MIN_VISITS = 10
+N_euler =  25001 # number of euler episodes
+MIN_VISITS = 4
 # each state needs to be observed 10 times (if all visited then do random action)
-LOG_K = 50
-DIR = 'pomdp_0512/{}_new_3/'.format(C)
+LOG_K = 100
+DIR = '0523_pomdp/c{}_25k_2/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
@@ -37,7 +37,7 @@ R[2, 1] = 1.
 R[3, 0] = 0.5
 R[2, 0] = 0.5
 '''
-
+# make sure to not use discount factor for exploration
 def find_reward_var(rewards, actions_list=None):
     if actions_list is None:
         res = np.zeros((S, A))
@@ -140,26 +140,21 @@ def initialize():
     return n, p_sum, r_sum, r_var
 
 def transition(env, a):
-    # absorbing state (death or discharged)
+    # absorbing state (death or discharged), terminal reward 0 
     if env.env.state.check_absorbing_state():
-        reward = env.env.calculateReward()
-        if reward > 0:
-            reward = 0.5
-        if reward < 0:
-            reward = 0.5
-        return env.env.state.get_state_idx(), reward, True
+        return env.env.state.get_state_idx(), 0.0, True
 
     # otherwise take action
     state, reward, done, info = env.step(a) 
-    if not done:
-        reward = 0.5
-    if done:
-        if reward < 0:
-            reward = 0.0
-        elif reward > 0:
-            reward = 1.0
-        else:
-            reward = 0.5
+    # if not done:
+    #    reward = 0.25
+    #if done:
+    #    if reward < 0: # death-terminal
+    #        reward = 0.0
+    #    elif reward > 0.25: # recovery-terminal
+    #        reward = 1.0
+    #    else: # neither, 5 steps expired
+    #        reward = 0.25
     return state, reward, done
 
 
@@ -171,7 +166,7 @@ def explore_pi(pi, n, p_sum, r_sum, r_var, n_global, p_global, r_global, goal_s,
     change_t = True
 
     for i in range(H):
-        act = int(pi[state, H-1-i])
+        act = int(pi[state, i]) # H-1-i])
         next_state, rew, done = transition(env, act)
         
         if change_t:
@@ -233,9 +228,14 @@ def euler_explore(n, p_sum, r_sum, r_var, n_global, p_global, r_global, s, a):
 
 def pomdp(save=True):
     n_global, p_global, r_global, _ = initialize()
+    '''
+    n_global = np.load('0513_res/pomdp/c0.01_r0/n_25001.npy')
+    p_global = np.load('0513_res/pomdp/c0.01_r0/p_25001.npy')
+    r_global = np.load('0513_res/pomdp/c0.01_r0/r_25001.npy')
+    '''
     stats = {'rew': [], 'steps': []}
-    total_steps = N_euler
-    while (total_steps > 0):
+    total_eps = N_euler
+    while (total_eps > 0):
         for s in range(S):
             start_t = time.time()
             for a in range(A):
@@ -243,7 +243,7 @@ def pomdp(save=True):
                 n, p_sum, r_sum, r_var = initialize()
                 _t = 0
                 
-                if total_steps <= 0:
+                if total_eps <= 0:
                     print("total steps exceeded!")
                     break 
                 #########################################################################
@@ -252,20 +252,20 @@ def pomdp(save=True):
                                                                             n_global, p_global, r_global, s, a)
                     stats['rew'].append(rew)
                     stats['steps'].append(steps)
-                    total_steps -= 1
+                    total_eps -= 1
                     _t += 1
-                    if total_steps % LOG_K == 0:
-                        np.save(DIR+"n_{}.npy".format(N_euler - total_steps), n_global)
-                        np.save(DIR+"p_{}.npy".format(N_euler - total_steps), p_global)
-                        np.save(DIR+"r_{}.npy".format(N_euler - total_steps), r_global) 
-                    if total_steps <= 0:
+                    if total_eps % LOG_K == 0:
+                        np.save(DIR+"n_{}.npy".format(N_euler - total_eps), n_global)
+                        np.save(DIR+"p_{}.npy".format(N_euler - total_eps), p_global)
+                        np.save(DIR+"r_{}.npy".format(N_euler - total_eps), r_global) 
+                    if total_eps <= 0:
                         print("total steps exceeded!")
                         break  
                 #########################################################################
-                if total_steps % LOG_K == 0:
-                    np.save(DIR+"n_{}.npy".format(N_euler - total_steps), n_global)
-                    np.save(DIR+"p_{}.npy".format(N_euler - total_steps), p_global)
-                    np.save(DIR+"r_{}.npy".format(N_euler - total_steps), r_global)
+                if total_eps % LOG_K == 0:
+                    np.save(DIR+"n_{}.npy".format(N_euler - total_eps), n_global)
+                    np.save(DIR+"p_{}.npy".format(N_euler - total_eps), p_global)
+                    np.save(DIR+"r_{}.npy".format(N_euler - total_eps), r_global)
             print('Finished state ', s, ' in ', time.time() - start_t)
 
         if save:
@@ -275,22 +275,26 @@ def pomdp(save=True):
             np.save(DIR+"p_early.npy", p_global)
             np.save(DIR+"r_early.npy", r_global)
         
-        print('Finished all observations at ', total_steps, ' or reached max step')
+        print('Finished all observations at ', total_eps, ' or reached max step')
         
-        if total_steps <= 0:
+        if total_eps % LOG_K == 0:
+            np.save(DIR+"n_{}.npy".format(N_euler - total_eps), n_global)
+            np.save(DIR+"p_{}.npy".format(N_euler - total_eps), p_global)
+            np.save(DIR+"r_{}.npy".format(N_euler - total_eps), r_global)
+        
+        if total_eps <= 0:
             print("total steps exceeded!")
             break 
 
-        # take random action to explore until 50k episodes
+        # take random action to explore until N_euler
         n_global, p_global, r_global, rew, steps = random_explore(n_global, p_global, r_global)
         stats['rew'].append(rew)
         stats['steps'].append(steps)
-        total_steps -= 1
-
-        if total_steps % LOG_K == 0:
-            np.save(DIR+"n_{}.npy".format(N_euler - total_steps), n_global)
-            np.save(DIR+"p_{}.npy".format(N_euler - total_steps), p_global)
-            np.save(DIR+"r_{}.npy".format(N_euler - total_steps), r_global)
+        total_eps -= 1
+        if total_eps % LOG_K == 0:
+            np.save(DIR+"n_{}.npy".format(N_euler - total_eps), n_global)
+            np.save(DIR+"p_{}.npy".format(N_euler - total_eps), p_global)
+            np.save(DIR+"r_{}.npy".format(N_euler - total_eps), r_global)
 
     if save:
         pickle.dump(stats, open(DIR+"obsrvd_reward_final.obj","wb"))

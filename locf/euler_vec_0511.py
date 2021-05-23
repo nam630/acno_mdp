@@ -18,15 +18,16 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler = 50001 # number of euler episodes
+N_euler = 25001 # number of euler episodes
 MIN_VISITS = 10
 # each state needs to be observed 10 times (if all visited then do random action)
 LOG_K = 50
-EVAL_N = 100
+EVAL_N = 10000000
 verbose = True
 # obs_cost_list = [0.0, 0.05, 0.1, 0.2]
 # obs_cost = 0.05
-DIR = 'mdp_0512/c{}_discounted_0/'.format(C)
+GAMMA = 0.7
+DIR = '0513_res/0522_mdp/c{}_corrected_1/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
@@ -42,19 +43,19 @@ R[3, 0] = 0.5
 R[2, 0] = 0.5
 '''
 
-def find_reward_var(rewards, actions_list=None):
+def find_reward_var(rewards, t, actions_list=None):
     if actions_list is None:
         res = np.zeros((S, A))
         for s in range(S):
             for a in range(A):
                 if len(rewards[(s, a)]) > 0:
-                    res[s, a] = np.std(rewards[(s, a)]) ** 2
+                    res[s, a] = np.std(GAMMA ** (t-1) * np.array(rewards[(s, a)])) ** 2
         return res
     
     res = np.zeros((S))
     for (s, act) in enumerate(actions_list):
         if len(rewards[(s, act)]) > 0:
-            res[s] = np.std(rewards[(s, act)]) ** 2
+            res[s] = np.std(GAMMA ** (t-1) * np.array(rewards[(s, act)])) ** 2
     return res
 
 # think this pi is actually unnecessary
@@ -76,11 +77,11 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     b_pv = phi + 1/np.sqrt(n_denom) * (JB / np.sqrt(n_denom) + Bv * v_dist)
     
     # find b_r S x A
-    var_r = find_reward_var(r_var)
+    var_r = find_reward_var(r_var, t)
     b_r =  np.sqrt(2 * var_r * C / n_denom) + (7 * C) / (3 * denom)
 
     # S x A
-    temp_Q = r_sum / n_denom + b_r + p_hat @ v_upper + b_pv
+    temp_Q = (GAMMA ** (t-1) * r_sum) / n_denom + b_r + p_hat @ v_upper + b_pv
 
     # Q, S x A
     Q = np.minimum(np.ones((S, A)) * H - t, temp_Q)
@@ -96,7 +97,7 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     temp = p_star @ ((v_lower - exp_v_lower) ** 2)
     
     # r_temp S x A
-    r_temp = r_sum / n_denom
+    r_temp = (GAMMA ** (t-1) * r_sum) / n_denom
     
     n_denom = np.maximum(np.ones((S,)), n_star)
     n_temp = np.maximum(np.ones((S,)), n_star - 1)
@@ -110,7 +111,7 @@ def euler_vec(n_mat, p_sum, r_sum, r_var, v_upper, v_lower, t):
     # select a* from S x A (col 1)
     r_hat = np.stack([r_temp[s, i] for (s, i) in enumerate(pi)])
     # b_r, S
-    var_r = find_reward_var(r_var, actions_list=pi)
+    var_r = find_reward_var(r_var, t, actions_list=pi)
     b_r = np.sqrt(2 * var_r * C / n_denom) + (7 * C) / (3 * n_temp)
     # S
     v_upper = np.max(Q, 1)
@@ -144,25 +145,20 @@ def initialize():
     return n, p_sum, r_sum, r_var
 
 def transition(env, a):
-    # if already in terminal, just keep incurring 0.5 and stay in the same state
+    # if already in terminal, stay in the same state w/out reward
     if env.env.state.check_absorbing_state():
-        reward = env.env.calculateReward()
-        if reward > 0: # terminal
-            reward = 0.5
-        if reward < 0: # terminal
-            reward = 0.5
-        return env.env.state.get_state_idx(), reward, True
+        return env.env.state.get_state_idx(), 0.0, True
 
     state, reward, done, info = env.step(a) 
-    if not done:
-        reward = 0.5 # for neither
-    if done:
-        if reward < 0: # death-terminal
-            reward = 0.0
-        elif reward > 0: # recovery-terminal
-            reward = 1.0
-        else: # neither 
-            reward = 0.5
+    # if not done:
+    #    reward = 0.25 # for neither
+    #if done:
+    #    if reward < 0: # death-terminal
+    #        reward = 0.0
+    #    elif reward > 0.25: # recovery-terminal
+    #        reward = 1.0
+    #    else: # neither, 5 steps expired
+    #        reward = 0.25
     return state, reward, done
    
 
@@ -173,16 +169,17 @@ def execute_pi(pi, n_mat, p_sum, r_sum, r_var):
     state = env.reset(INIT_STATE)
     reward = 0.0
     change_t = True
-    for i in range(5):
+    for i in range(H): # 0 ~ H-1
         # act = pi[(state, t)]
-        act = int(pi[state, H-1-i])
+        # act = int(pi[state, H-1-i])
+        act = int(pi[state, i])
         next_state, rew, done = transition(env, act)
         if change_t:
             t -= 1
         # r_sum[(state, act)] += reward
         r_sum[state, act] += rew
         r_var[(state, act)].append(rew)
-        reward += rew
+        reward += GAMMA ** i * rew
         n_mat[state, act] += 1
         p_sum[state, act, next_state] += 1
         # n[(state, act)] += 1
@@ -200,7 +197,7 @@ def find_eval_pi(n_mat, p_sum, r_sum):
     r_hat = r_sum/ n_mat
     v = np.zeros((S))
     for t in range(H, 0, -1): # t from H~1
-        Q = r_hat + p_hat @ v
+        Q = GAMMA ** (t-1) * r_hat + p_hat @ v
         pi_t = np.argmax(Q, 1) 
         v = np.max(Q, 1)
         pi[:, t-1] = pi_t 
@@ -214,12 +211,12 @@ def evaluate_pi(pi):
     state = env.reset(INIT_STATE)
     reward = 0.
     change_t = True
-    for i in range(5):
+    for i in range(H): # 0 ~ H-1 
         # act = pi[(state, t)]
         act = int(pi[state, H-1-i])
         next_state, rew, done = transition(env, act)
         state = next_state
-        reward += rew
+        reward += GAMMA ** i * rew
         if change_t:
             t -= 1
         if done:
@@ -247,19 +244,23 @@ def euler():
         stats['steps'].append(steps)
         if verbose:
             print("one eps: ", end - start, "reward: ", reward)
-            if (k % LOG_K) == 0:
-                eval_pi = find_eval_pi(n, p_sum, r_sum)  
-                eval_rewards, steps = zip(*[evaluate_pi(eval_pi) for j in range(EVAL_N)])
-                stats_eval['rew'].append(eval_rewards)
-                stats_eval['steps'].append(steps)
+            # if (k % LOG_K) == 0:
+            #    pickle.dump(r_sum, open(DIR + "reward_sum{}.obj".format(k), "wb"))
+            #    pickle.dump(p_sum, open(DIR + "prob_sum{}.obj".format(k), "wb"))
+            #    pickle.dump(n, open(DIR + "n_visits{}.obj".format(k), "wb"))
+                # eval_pi = find_eval_pi(n, p_sum, r_sum)  
+                # eval_rewards, steps = zip(*[evaluate_pi(eval_pi) for j in range(EVAL_N)])
+                # stats_eval['rew'].append(eval_rewards)
+                # stats_eval['steps'].append(steps)
     if verbose:
         pickle.dump(stats, open(DIR + "obsvd_reward_vec.obj","wb"))
-        pickle.dump(stats_eval, open(DIR + "eval_reward_vec.obj","wb"))
+        # pickle.dump(stats_eval, open(DIR + "eval_reward_vec.obj","wb"))
         
         pickle.dump(pi, open(DIR + "policy_vec.obj", "wb"))
         pickle.dump(r_sum, open(DIR + "reward_sum.obj", "wb"))
         pickle.dump(p_sum, open(DIR + "prob_sum.obj", "wb"))
         pickle.dump(n, open(DIR + "n_visits.obj", "wb"))
+        pickle.dump(r_var, open(DIR + "reward_var.obj", "wb"))
 
 
 def main():

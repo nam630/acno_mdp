@@ -127,14 +127,14 @@ class Sepsis():
         self.max_steps = 5 
         self.t = 0
         self.seed = random.seed() 
-        self.n_start_states = 2000
+        self.n_start_states = 5000
         self.ucb_coefficient = 3.0
-        self.min_particle_count = 1000
-        self.max_particle_count = 2000
+        self.min_particle_count = 3000
+        self.max_particle_count = 5000
         self.max_depth = 5
         self.action_selection_timeout = 60
         self.particle_selection_timeout = 0.2
-        self.n_sims = 1000
+        self.n_sims = 1000000 # all new runs with this 10000 # 10000000
         if is_mdp == 0:
             self.solver = 'POMCP'
         else:
@@ -146,10 +146,12 @@ class Sepsis():
         self.epsilon_minimum = 0.1
         self.epsilon_decay = 0.9
         self.discount = 0.7
-        self.n_epochs = 25000 # 100
+        self.n_epochs = 25000
         self.save = False
         self.timeout = 7200000
         
+        # only for debugging
+        self.real_state = 256
         ##### Load empirical model #####
         # self.t_estimates = np.load('/next/u/hjnam/locf/0512_discounted/pomdp/0.01_T_1.npy')
         # self.r_estimates = np.load('/next/u/hjnam/locf/0512_discounted/pomdp/0.01_R_1.npy')
@@ -163,6 +165,7 @@ class Sepsis():
             self.n_counts = np.ones((720, 8)) * 720
             self.r_counts = np.zeros((720, 8))
             self.t_counts = np.ones((720, 8, 720))
+            
             # self.t_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_T_4_r0.25.npy')
             # self.r_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_R_4_r0.25.npy')
         ################################
@@ -208,6 +211,8 @@ class Sepsis():
         
         while particles.__len__() < n_particles:
             state = random.choice(prev_particles)
+            # if (state.position == obs.position):
+                # print("matched!")
             if mdp:
                 result, is_legal = self.generate_step(state, action, is_mdp=True)
             else:
@@ -215,12 +220,17 @@ class Sepsis():
             # if null (i.e., 720) obs, any state particle CAN be added
             if result.observation.position == 720 or result.observation == obs: # obs_map.get_belief(result.observation) is child_node:
                 assert(result.next_state.position < 720)
+                # print("finally added something!")
                 particles.append(result.next_state)
-                if particles.__len__() % 200 == 0: # logging for debugging
+                if particles.__len__() % 500 == 0: # logging for debugging
                     print(particles.__len__(), time.time() - start)
-            if time.time() - start > self.particle_selection_timeout and particles.__len__() > 3:
-                print('REJECTION timeout:', time.time() - start)
-                break
+            if time.time() - start > self.particle_selection_timeout:
+                if obs.position != 720:
+                    print('prev pos:', state.position, particles.__len__(), 'prob:', self.t_estimates[state.position, action.bin_number % 8, obs.position])
+                    print('real pos{}, real transition:'.format(self.real_state), self.t_estimates[self.real_state, action.bin_number, obs.position])
+                if particles.__len__() > 3: # 3 too long?
+                    print('REJECTION timeout:', time.time() - start)
+                    break
         
         while particles.__len__() < n_particles:
             state = random.choice(particles)
@@ -245,11 +255,11 @@ class Sepsis():
             else:
                 next_state = np.random.randint(0, 720, 1)[0] # random sample
         else:
-            if sum(self.t_estimates[state, action]) == 1:
-                p = self.t_estimates[state,action,:]
-                next_state = np.random.choice(720, 1, p=p)[0] # sample according to probs
-            else:
-                next_state = np.random.randint(0, 720, 1)[0] # random sample
+            #if np.round(sum(self.t_estimates[state, action]) == 1:
+            p = self.t_estimates[state,action,:]
+            next_state = np.random.choice(720, 1, p=p)[0] # sample according to probs
+            # else:
+            #    next_state = np.random.randint(0, 720, 1)[0] # random sample
             rew = self.r_estimates[state, action]
         
         # use true environment for reward estimation
@@ -274,9 +284,16 @@ class Sepsis():
             action = action.bin_number
         if type(state) is not int:
             state = state.position
-        _, rew, done, info = self.sim.step(action, state)
+        temp = SepsisEnv(init_state=state) # next_state)
+        temp.env.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
+        # self.sim.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
+        next_state, rew, done, info = temp.step(action % 8, state)
         # if action < self.actions_n // 2 :
+        print("next obs:", next_state, "state: ", state, "last real state: ", self.real_state)
+        print("true prob: ", self.t_estimates[self.real_state, action % 8, info['true_state']])
+        print(np.argwhere(self.t_estimates[self.real_state, action % 8, :] > 0.))
         state = info['true_state'] 
+        self.real_state = state
         return BoxState(int(state), is_terminal=done, r=rew), True
 
     '''
@@ -324,7 +341,9 @@ class Sepsis():
         result = StepResult()
         # Based on the simulator, next_state is true next state or imagined by the simulator
         if _true:
+            print("taking true step")
             result.next_state, is_legal = self.take_real_state(state, action)
+            print("next true state:", result.next_state.position)
         # Use true simulator for taking actions (only for eval)
         else:
             result.next_state, is_legal = self.make_next_position(state, action)
