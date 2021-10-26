@@ -152,9 +152,6 @@ class Sepsis():
         
         # only for debugging
         self.real_state = 256
-        ##### Load empirical model #####
-        # self.t_estimates = np.load('/next/u/hjnam/locf/0512_discounted/pomdp/0.01_T_1.npy')
-        # self.r_estimates = np.load('/next/u/hjnam/locf/0512_discounted/pomdp/0.01_R_1.npy')
         if debug_mode:
             self.empi_model = pickle.load(open('/next/u/hjnam/locf/sepsis/0411/p_256_/256model_pi.obj','rb'))
         else: 
@@ -165,10 +162,6 @@ class Sepsis():
             self.n_counts = np.ones((720, 8)) * 720
             self.r_counts = np.zeros((720, 8))
             self.t_counts = np.ones((720, 8, 720))
-            
-            # self.t_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_T_4_r0.25.npy')
-            # self.r_estimates = np.load('/next/u/hjnam/locf/0513_res/mdp/0.01_R_4_r0.25.npy')
-        ################################
 
     def update(self, step_result):
         pass
@@ -211,16 +204,13 @@ class Sepsis():
         
         while particles.__len__() < n_particles:
             state = random.choice(prev_particles)
-            # if (state.position == obs.position):
-                # print("matched!")
             if mdp:
                 result, is_legal = self.generate_step(state, action, is_mdp=True)
             else:
                 result, is_legal = self.generate_step(state, action)
             # if null (i.e., 720) obs, any state particle CAN be added
-            if result.observation.position == 720 or result.observation == obs: # obs_map.get_belief(result.observation) is child_node:
+            if result.observation.position == 720 or result.observation == obs: 
                 assert(result.next_state.position < 720)
-                # print("finally added something!")
                 particles.append(result.next_state)
                 if particles.__len__() % 500 == 0: # logging for debugging
                     print(particles.__len__(), time.time() - start)
@@ -255,11 +245,8 @@ class Sepsis():
             else:
                 next_state = np.random.randint(0, 720, 1)[0] # random sample
         else:
-            #if np.round(sum(self.t_estimates[state, action]) == 1:
             p = self.t_estimates[state,action,:]
             next_state = np.random.choice(720, 1, p=p)[0] # sample according to probs
-            # else:
-            #    next_state = np.random.randint(0, 720, 1)[0] # random sample
             rew = self.r_estimates[state, action]
         
         # use true environment for reward estimation
@@ -286,12 +273,10 @@ class Sepsis():
             state = state.position
         temp = SepsisEnv(init_state=state) # next_state)
         temp.env.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
-        # self.sim.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
         next_state, rew, done, info = temp.step(action % 8, state)
-        # if action < self.actions_n // 2 :
-        print("next obs:", next_state, "state: ", state, "last real state: ", self.real_state)
-        print("true prob: ", self.t_estimates[self.real_state, action % 8, info['true_state']])
-        print(np.argwhere(self.t_estimates[self.real_state, action % 8, :] > 0.))
+        # print("next obs:", next_state, "state: ", state, "last real state: ", self.real_state)
+        # print("true prob: ", self.t_estimates[self.real_state, action % 8, info['true_state']])
+        # print(np.argwhere(self.t_estimates[self.real_state, action % 8, :] > 0.))
         state = info['true_state'] 
         self.real_state = state
         return BoxState(int(state), is_terminal=done, r=rew), True
@@ -305,10 +290,6 @@ class Sepsis():
         if type(state) is not int:
             state = state.position
         return self.empirical_simulate(state, action)
-    #    # should be through the learned simulator
-    #    _, _, _, info = self.empirical_simulate(action, state)
-    #    next_position = info['true_state']
-    #    return int(next_position)
 
     def get_all_observations(self):
         obs = {}
@@ -331,7 +312,6 @@ class Sepsis():
             return rew
         if action.bin_number < self.actions_n // 2 or always_obs:
             rew = rew + self.cost
-        # if next_state.terminal:
         rew += next_state.final_rew
         return rew
 
