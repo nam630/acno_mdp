@@ -2,8 +2,8 @@ import math
 import random
 import numpy as np
 import sys
-sys.path.append('./locf/env/sepsisSimDiabetes')
-sys.path.append('./POMDPy')
+sys.path.append('acno_mdp/locf/env/sepsisSimDiabetes')
+sys.path.append('acno_mdp/POMDPy')
 import pickle
 from pomdpy.discrete_pomdp import DiscreteActionPool, DiscreteObservationPool
 from pomdpy.discrete_pomdp import DiscreteAction
