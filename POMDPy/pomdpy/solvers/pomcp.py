@@ -29,13 +29,7 @@ class POMCP(BeliefTreeSolver):
         :return:
         """
         super(POMCP, self).__init__(agent)
-        '''
-        import os
-        self.file = 'res/0412/pomcp/c_0/'
-        if not os.path.exists(self.file):
-            os.makedirs(self.file)
-        self.file += 'patient_256.h5'
-        '''
+
         # Pre-calculate UCB values for a speed-up
         self.fast_UCB = [[None for _ in range(POMCP.UCB_n)] for _ in range(POMCP.UCB_N)]
 
