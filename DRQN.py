@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import random
 from torch.autograd import Variable
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
+sys.path.append('acno_mdp/locf/env/sepsisSimDiabetes')
 from sepsis_tabular import SepsisEnv
 import pandas as pd
 # from env_Tmaze import EnvTMaze
