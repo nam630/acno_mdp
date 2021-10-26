@@ -127,14 +127,14 @@ class Sepsis():
         self.max_steps = 5 
         self.t = 0
         self.seed = random.seed() 
-        self.n_start_states = 5000
+        self.n_start_states = 2000
         self.ucb_coefficient = 3.0
-        self.min_particle_count = 3000
-        self.max_particle_count = 5000
+        self.min_particle_count = 1000
+        self.max_particle_count = 2000
         self.max_depth = 5
         self.action_selection_timeout = 60
         self.particle_selection_timeout = 0.2
-        self.n_sims = 1000000 # all new runs with this 10000 # 10000000
+        self.n_sims = 500 # same as default params in pomcpy.py
         if is_mdp == 0:
             self.solver = 'POMCP'
         else:
