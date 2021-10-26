@@ -345,8 +345,7 @@ class Sepsis():
         pass
 
     def get_max_undiscounted_return(self):
-        return 1.0 # + 0.25 * 4
-        # return 1
+        return 1.0
 
     def reset_for_epoch(self):
         self.t = 0
