@@ -95,24 +95,9 @@ class POMCP(BeliefTreeSolver):
         for i in range(len(particles)):
             p.append(particles[i].position)
         p = np.array(p)
-        # print('S:', self.belief_tree_index.state_particles[0].position, 'e: ', eps, act_vals)
-        # print("=================")
         p = np.expand_dims(p, axis=0)
         act_vals = np.expand_dims(act_vals, axis=0)
         
-        '''
-        first = bool(eps>0.85)
-        if first:
-            with h5py.File(self.file,'w') as f:
-                f.create_dataset('state', data=p, maxshape=(None, p.shape[1]))
-                f.create_dataset('action_val', data=act_vals, maxshape=(None, act_vals.shape[1]))
-        else:
-            with h5py.File(self.file, 'a') as f:
-                f['state'].resize((f['state'].shape[0] + 1), axis=0)
-                f['state'][-1:] = p
-                f['action_val'].resize((f['action_val'].shape[0] + 1), axis=0)
-                f['action_val'][-1:] = act_vals
-        '''
         # this always selects greedy (no epsilon)
         acts =  ucb_action(self, self.belief_tree_index, True)
         if greedy_select:
