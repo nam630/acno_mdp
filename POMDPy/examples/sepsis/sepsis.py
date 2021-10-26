@@ -339,6 +339,8 @@ class Sepsis():
         if type(action) is int:
             action = BoxAction(action)
         result = StepResult()
+        
+        _true = False
         # Based on the simulator, next_state is true next state or imagined by the simulator
         if _true:
             print("taking true step")
@@ -347,10 +349,6 @@ class Sepsis():
         # Use true simulator for taking actions (only for eval)
         else:
             result.next_state, is_legal = self.make_next_position(state, action)
-        
-        ###  for true runs #####
-        # result.next_state, is_legal = self.take_real_state(state, action)
-        ########################
         
         result.action = action.copy()
         result.observation = self.make_observation(action, result.next_state, always_obs=is_mdp)
