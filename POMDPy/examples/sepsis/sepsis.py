@@ -2,8 +2,8 @@ import math
 import random
 import numpy as np
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
-sys.path.append('/next/u/hjnam/POMDPy')
+sys.path.append('./locf/env/sepsisSimDiabetes')
+sys.path.append('./POMDPy')
 import pickle
 from pomdpy.discrete_pomdp import DiscreteActionPool, DiscreteObservationPool
 from pomdpy.discrete_pomdp import DiscreteAction
@@ -199,8 +199,6 @@ class Sepsis():
             obs_map = action_node.observation_map
         child_node = obs_map.get_belief(obs)
         start = time.time()
-
-        print('REJECTION SAMPLING STARTED, {}'.format(obs.position))
         
         while particles.__len__() < n_particles:
             state = random.choice(prev_particles)
@@ -271,12 +269,9 @@ class Sepsis():
             action = action.bin_number
         if type(state) is not int:
             state = state.position
-        temp = SepsisEnv(init_state=state) # next_state)
+        temp = SepsisEnv(init_state=state) 
         temp.env.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
         next_state, rew, done, info = temp.step(action % 8, state)
-        # print("next obs:", next_state, "state: ", state, "last real state: ", self.real_state)
-        # print("true prob: ", self.t_estimates[self.real_state, action % 8, info['true_state']])
-        # print(np.argwhere(self.t_estimates[self.real_state, action % 8, :] > 0.))
         state = info['true_state'] 
         self.real_state = state
         return BoxState(int(state), is_terminal=done, r=rew), True
