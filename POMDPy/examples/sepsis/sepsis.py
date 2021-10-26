@@ -153,7 +153,7 @@ class Sepsis():
         # only for debugging
         self.real_state = 256
         if debug_mode:
-            self.empi_model = pickle.load(open('/next/u/hjnam/locf/sepsis/0411/p_256_/256model_pi.obj','rb'))
+            self.empi_model = pickle.load(open('256model_pi.obj','rb'))
         else: 
             # starts with an empty model 
             self.t_estimates = np.zeros((720, 8, 720))
