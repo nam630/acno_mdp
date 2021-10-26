@@ -1,5 +1,5 @@
-# acno_mdp
-Conda packages and versions used for generating the reported results are shared in conda.yml (Note not all the packages are needed).
+## List of ACNO-MDP algorithms and commands
+Conda packages and versions used for generating the reported results are shared in conda.yml (Note not all the packages may be needed.)
 
 To run the known observation belief encoder
 1. cartpole (can adjust observation cost in cofig_file)
@@ -21,7 +21,7 @@ POMDPy source code: https://github.com/pemami4911/POMDPy
 Empirical model built from 1M random interactions is saved in "./POMDPy/examples/sepsis/model_256.obj"
 
 1. Observe-then-Plan (can change cost to any <= 0 value, init_idx specifies the start patient state)
-''' assume the transition and reward estimates are learned in advance and use a copy of the model parameter estimates for planning '''
+''' assume the transition and reward estimates are learned in advance and use a copy of the model parameter estimates for planning. transitions need to be unzipped from transitions.npy.zip inside acno_mdp/POMDPy/pompdy directory '''
 Set "observe_then_plan = True" in L183 run_pomcp(self, epoch, eps, temp=None, observe_then_plan=True) in main/POMDPy/pomdpy/agent.py 
 python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 
