@@ -134,7 +134,7 @@ class Sepsis():
         self.max_depth = 5
         self.action_selection_timeout = 60
         self.particle_selection_timeout = 0.2
-        self.n_sims = 500 # same as default params in pomcpy.py
+        self.n_sims = 5000 # same as default params in pomcpy.py
         if is_mdp == 0:
             self.solver = 'POMCP'
         else:
