@@ -18,11 +18,11 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler =  25001 # number of euler episodes
+N_euler =  1001 # number of euler episodes
 MIN_VISITS = 4
 # each state needs to be observed 10 times (if all visited then do random action)
 LOG_K = 100
-DIR = '0523_pomdp/c{}_25k_2/'.format(C)
+DIR = 'pomcp_{}/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
