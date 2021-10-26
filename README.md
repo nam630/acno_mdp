@@ -40,3 +40,5 @@ python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 5. DRQN
 Source code: https://github.com/Bigpig4396/PyTorch-Deep-Recurrent-Q-Learning-DRQN
 python drqn.py
+
+Generating plots for continuous domains uses the same code as DVRL and plots for sepsis can be replicated using sepsis_res/plot.py.
