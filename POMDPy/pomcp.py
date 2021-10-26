@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--epsilon_minimum', default=0.1, type=float)
     parser.add_argument('--epsilon_decay', default=0.95, type=float)
     parser.add_argument('--epsilon_decay_step', default=20, type=int)
-    parser.add_argument('--n_sims', default=500, type=int,
+    parser.add_argument('--n_sims', default=5000, type=int,
                         help='For POMCP, this is the num of MC sims to do at each belief node. '
                              'For SARSA, this is the number of rollouts to do per epoch')
     parser.add_argument('--timeout', default=22000000, type=int, help='Max num of sec the experiment should run before '
