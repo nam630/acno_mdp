@@ -16,12 +16,17 @@ python ./code/main.py -p with environment.config_file=mountainHike_ver3.yaml alg
 To run Sepsis with POMCP/MCTS
 Empirical model built from 1M random interactions is saved in "./POMDPy/examples/sepsis/model_256.obj"
 
-1. POMCP (can change cost to any <= 0 value, init_idx specifies the start patient state)
+1. Observe-then-Plan (can change cost to any <= 0 value, init_idx specifies the start patient state)
+''' assume the transition and reward estimates are learned in advance and use a copy of the model parameter estimates for planning '''
 python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 
-2. MCTS
+2. ACNO-POMCP (observe while planning)
+''' starts with uniform initialization of transition models and updates the transition for every observed tuple '''
+python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
+
+3. MCTS (always observing POMCP, not included in the main paper)
 python pomcp.py --init_idx 256 --cost -0.05 --is_mdp 1
 
-For running POMCP with the true model parameters (e.g., stepping actions in the true environment instead of imaginging with the learned model parameters), modify .....
-
+4. For running POMCP with the true model parameters (e.g., stepping actions in the true environment instead of imaginging with the learned model parameters), modify L343 in POMDPy/examples/sepsis/sepsis.py to "_true = True" so the actions are executed in a copy of the sepsis environment. Otherwise, use the same command as ACNO-POMCP
+python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 
