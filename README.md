@@ -22,4 +22,6 @@ python pomcp.py --init_idx 256 --cost -0.1 --is_mdp 0
 2. MCTS
 python pomcp.py --init_idx 256 --cost -0.05 --is_mdp 1
 
+For running POMCP with the true model parameters (e.g., stepping actions in the true environment instead of imaginging with the learned model parameters), modify .....
+
 
