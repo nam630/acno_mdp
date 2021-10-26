@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
+sys.path.append('acno_mdp/locf/env/sepsisSimDiabetes')
 from env.sepsisSimDiabetes.sepsis_pos_reward import SepsisEnv 
 import time
 import pickle
