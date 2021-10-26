@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
+sys.path.append('acno_mdp/locf/env/sepsisSimDiabetes')
 from env.sepsisSimDiabetes.sepsis_tabular import SepsisEnv 
 import time
 import pickle
@@ -9,7 +9,7 @@ import os
 '''
 Constant C for delta, Bp, Bv, J, ln(4SAT/delta)
 '''
-C =  20 # might need to make larger? 
+C = 0.01 # might need to make larger? 
 H = 5
 Bv = np.sqrt(2 * C)
 Bp = H * Bv
@@ -18,7 +18,7 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler = 5000 # number of euler episodes
+N_euler = 1001 # number of euler episodes
 
 ''' 
 Test with a dummy env
