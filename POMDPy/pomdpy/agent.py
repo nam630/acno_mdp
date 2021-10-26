@@ -10,12 +10,12 @@ import numpy as np
 
 module = "agent"
 
-DIR = '0522_res/r0.25_gamma_0.7_cost_0/'
-SAVE_K = 'true_model_30rn' # true_model_10k'
+DIR = './exp/'
+SAVE_K = '0'
 if not os.path.exists(DIR + SAVE_K):
     os.makedirs(DIR + SAVE_K)
 
-_eval = True
+_eval = False
 
 def action_dictionary():
     return {
@@ -206,15 +206,15 @@ class Agent:
         solver.model.r_estimates = old_r / old_n
         
         if observe_then_plan:
-            terminal_states = np.load('/next/u/hjnam/locf/env/sepsisSimDiabetes/terminal_states.npy')
+            terminal_states = np.load('terminal_states.npy')
             for terminal in terminal_states:
                 solver.model.t_estimates[terminal, :, :] = 0.
                 solver.model.t_estimates[terminal, :, terminal] = 1.
                 solver.model.r_estimates[terminal, :] = 0.
 
             # POMDP MODEL (M')
-            solver.model.r_estimates = np.load('/next/u/hjnam/locf/0513_res/pomdp/0.01_R_0_r0.25.npy')
-            solver.model.t_estimates = np.load('/next/u/hjnam/locf/0513_res/pomdp/0.01_T_0_r0.25.npy')
+            solver.model.r_estimates = np.load('rewards.npy')
+            solver.model.t_estimates = np.load('transitions.npy')
         
         # Monte-Carlo start state
         state = solver.belief_tree_index.sample_particle()
