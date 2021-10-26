@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-sys.path.append('/next/u/hjnam/locf/env/sepsisSimDiabetes')
+sys.path.append('acno_mdp/locf/env/sepsisSimDiabetes')
 from env.sepsisSimDiabetes.sepsis_tabular import SepsisEnv 
 import time
 import pickle
@@ -18,16 +18,16 @@ JB = 4 * J + Bp
 A = 8
 S = 720
 INIT_STATE = 256 # sepsis patient state
-N_euler = 25001 # number of euler episodes
+N_euler = 1001 # number of euler episodes
 MIN_VISITS = 10
 # each state needs to be observed 10 times (if all visited then do random action)
 LOG_K = 50
-EVAL_N = 10000000
+EVAL_N = 10000000 # arbitrarily large number, so never reaches
 verbose = True
 # obs_cost_list = [0.0, 0.05, 0.1, 0.2]
 # obs_cost = 0.05
 GAMMA = 0.7
-DIR = '0513_res/0522_mdp/c{}_corrected_1/'.format(C)
+DIR = 'explore_with_mdp_{}/'.format(C)
 
 if not os.path.exists(DIR):
     os.makedirs(DIR)
