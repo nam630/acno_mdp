@@ -1,3 +1,5 @@
+NeurIPS 2021 Submission with Alex/Scotty https://openreview.net/pdf?id=jgze2dDL9y8
+
 ## List of ACNO-MDP algorithms and commands
 Conda packages and versions used for generating the reported results are shared in conda.yml (Note not all the packages may be needed.)
 
